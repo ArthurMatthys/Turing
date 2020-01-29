@@ -2,3 +2,10 @@
 tags
 _build
 ft_turing
+.idea/
+*.cmx
+*.cmi
+*.o
+*.cmo
+.DS_Store
+_build/
