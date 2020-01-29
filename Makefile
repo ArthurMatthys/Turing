@@ -19,7 +19,7 @@ OBJ_DIR = $(SIDE_DIR)obj/
 SRC_DIR = ./src/
 
 SRC_ = \
-	   Transition.ml
+	   ft_turing.ml
 
 OBJ = $(SRC_:%.ml=$(OBJ_DIR)%.cmx)
 
