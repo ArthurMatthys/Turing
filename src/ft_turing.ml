@@ -1,5 +1,4 @@
 open Yojson
-open Core
 
 type transition = {
   to_state: int; (* index transition *)
@@ -21,7 +20,7 @@ type transition_string = {
 
 type transition_string_with_state = {
     state: string;
-    transition: transition_string;
+    transition: transition_string list;
 }
 
 type machine_string = {
@@ -43,8 +42,7 @@ type tape = {
 }
 
 let run (prg: machine) (rb: tape): tape option = 
-    let tr_opt: transition option = List.nth (List.nth prg.transitions rb.state) rb.cur in
-    Option.map (fun (tr: transition) ->
+    let do_transition (tr: transition) =
         if tr.action then {
             right=if List.length rb.right > 0 then List.tl rb.right else [];
             left=rb.cur :: rb.left;
@@ -55,12 +53,44 @@ let run (prg: machine) (rb: tape): tape option =
             left=if List.length rb.left > 0 then List.tl rb.left else [];
             cur=if List.length rb.left > 0 then List.hd rb.left else 0;
             state=tr.to_state;
-        }) tr_opt
+        }
+    in
+    let transitions: transition option list = Core.List.nth prg.transitions rb.state in
+    Option.join (
+        Option.map (fun (ltr_opt: transition option list) ->
+            Option.map do_transition (List.nth ltr_opt rb.cur)
+        ) transitions
+    )
 
-let machine_string_to_machine (ms: machine_string): machine = 
+(*
+let run (prg: machine) (rb: tape): tape option = 
+    Option.join (
+        Option.map (fun (ltr_opt: transition option list) ->
+            Option.map (fun (tr_opt: transition option) ->
+                Option.map ( fun (tr: transition) ->
+                    if tr.action then {
+                        right=if List.length rb.right > 0 then List.tl rb.right else [];
+                        left=rb.cur :: rb.left;
+                        cur=if List.length rb.right > 0 then List.hd rb.right else 0;
+                        state=tr.to_state;
+                    } else {
+                        right=rb.cur :: rb.right;
+                        left=if List.length rb.left > 0 then List.tl rb.left else [];
+                        cur=if List.length rb.left > 0 then List.hd rb.left else 0;
+                        state=tr.to_state;
+                    }
+                )
+            ) (List.nth ltr_opt rb.cur)
+        ) (List.nth prg.transitions rb.state)
+    )
+ *)
+
+(*
+let machine_string_to_machine (ms: machine_string): (machine * tape) = 
 
 
 ;;
+*)
 
-let () = print_string "Hello world!"
-let () = print_newline ()
+let json = Yojson.from_file "Makefile"
+
