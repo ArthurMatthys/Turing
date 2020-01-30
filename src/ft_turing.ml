@@ -63,13 +63,32 @@ let run (prg: machine) (rb: tape): tape option =
         Option.bind transitions (fun (ltr_opt: transition option list) ->
             Option.map do_transition @@ Option.join @@ Core.List.nth ltr_opt rb.cur
         ) 
-
 (*
+type machine = {
+    finals: int list;
+    transitions: transition option list list;
+}
+type machine_string = {
+    name: string;
+    alphabet: string list;
+    blank: string;
+    states: string list;
+    initial: string;
+    finals: string list;
+    transitions: transition_string_with_state list;
+}
+
+(* alphabet index 0 is blank *)
+type tape = {
+    right: int list; (* list index alphabet *)
+    left: int list; (* list index alphabet *)
+    cur: int; (* index alphabet *)
+    state: int; (* index transition *)
+}
+ *)
 let machine_string_to_machine (ms: machine_string): (machine * tape) = 
 
 
-;;
-*)
 let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
     let ler = List.filter Result.is_error lr in
     if List.length ler > 0
@@ -188,14 +207,47 @@ let read_json_file () =
     try Result.Ok (Yojson.Basic.from_file Sys.argv.(1))
     with e -> Result.Error (Printexc.to_string e)
 
+let has_duplicates (lst:'a list): bool =
+    List.exists (fun e -> 1 < (List.length @@ List.filter ((=) e) lst)) lst
+
+let check_transitions (tr:transition_string_with_state list) (seek: transition_string -> (unit, string) result): (unit, string) result = 
+    let tr_err = List.flatten @@ List.map (fun (tr_str:transition_string_with_state) -> List.map (fun e -> Result.map_error ((^) @@ tr_str.state ^ ": ") (seek e) ) tr_str.transition) tr in
+    Result.map (fun _ -> ()) @@ list_result_flip tr_err 
+
+let check_machine (ms: machine_string): (unit, string) result = (
+    if not @@ List.exists ((=) ms.initial) ms.states
+    then Result.Error (ms.initial ^ " (inital value) is not in states list")
+    else if not @@ List.for_all (fun (f:string): bool -> List.exists ((=) f) ms.states) ms.finals
+    then Result.Error ("An element of finals is not in states list")
+    else if not @@ List.exists ((=) ms.blank) ms.alphabet
+    then Result.Error (ms.blank ^ " (blank character) is not in the alphabet")
+    else
+        let tr_res =  check_transitions ms.transitions  (fun (tr_str:transition_string): (unit, string) result ->
+            if not @@ List.exists ((=) tr_str.read) ms.alphabet 
+            then Result.Error (tr_str.read ^ " (read value) is not in the alphabet")
+            else if not @@ List.exists ((=) tr_str.write) ms.alphabet 
+            then Result.Error (tr_str.write ^ " (write value) is not in the alphabet")
+            else if not @@ List.exists ((=) tr_str.to_state) ms.states 
+            then Result.Error (tr_str.to_state ^ " (to_state value) is not in the state list")
+            else if not @@ List.exists ((=) tr_str.action) @@ "RIGHT" :: "LEFT" :: []
+            then Result.Error (tr_str.action ^ " (action) is supposed to be either \"RIGHT\" or \"LEFT\"")
+            else Result.Ok ()
+            )
+        in
+        Result.bind tr_res (fun _ ->
+            if has_duplicates ms.alphabet then Result.Error "Duplicates in alphabet"
+            else if has_duplicates ms.states then Result.Error "Duplicates in states" 
+            else Result.Ok ()
+          ) 
+)
+
 let () =
     if Array.length Sys.argv <> 3 then
         let () = print_string "./ft_turing <config.jsoin> <input string>\n" in
         let _ = Exit in ()
     else
         let (json: (Yojson.Basic.t, string) result) = read_json_file () in
-        let (res: (unit, string) result) =
-            Result.bind (Result.bind json json_to_machine_string) print_machine 
-        in
-        let _ = Result.map_error print_error res in
-        ()
+        let _ = Result.map_error print_error @@
+             Result.map machine_string_to_machine @@
+               Result.bind (Result.bind json json_to_machine_string) check_machine  
+        in ()
