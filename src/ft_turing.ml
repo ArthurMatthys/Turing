@@ -71,57 +71,58 @@ let machine_string_to_machine (ms: machine_string): (machine * tape) =
 ;;
 *)
 
-let print_machine (ms: machine_string): unit =
+let print_machine (ms: machine_string): (unit, string) result =
     let () = Printf.printf "********************************************************************************
 *%78s*
 *%*s%*s*
 *%78s*
-********************************************************************************" "" ((78 - String.length ms.name) / 2) ms.name ((78 - String.length ms.name) / 2) "" "" in ()
+********************************************************************************" "" ((78 - String.length ms.name) / 2) ms.name ((78 - String.length ms.name) / 2) "" ""
+    in Result.Ok ()
 
 
 
 
 let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result =
     let open Yojson.Basic.Util in
-        let (name: (string, string) result) = try Result.Ok (j |> member "name" |> to_string)
-                    with e -> Result.Error ("Invalid json key \"name\" : " ^ (Printexc.to_string e))
-        in
-        let alphabet = try Result.Ok (j |> member "alphabet" |> to_list |> filter_string)
-                    with e -> Result.Error ("Invalid json key \"alphabet\" : " ^ (Printexc.to_string e))
-        in
-        let blank = try Result.Ok (j |> member "blank" |> to_string) 
-                    with e -> Result.Error ("Invalid json key \"blank\" : " ^ (Printexc.to_string e))
-        in
-        let states = try Result.Ok (j |> member "states" |> to_list |> filter_string) 
-                    with e -> Result.Error ("Invalid json key \"states\" : " ^ (Printexc.to_string e))
-        in
-        let initial = try Result.Ok (j |> member "initial" |> to_string)
-                    with e -> Result.Error ("Invalid json key \"initial\" " ^ (Printexc.to_string e))
-        in
-        let finals = try Result.Ok (j |> member "finals" |> to_list |> filter_string) 
-                    with e -> Result.Error ("Invalid json key \"finals\" : " ^ (Printexc.to_string e))
-        in
-        let transitions = try Result.Ok (j |> member "transitions") 
-                    with e -> Result.Error ("Invalid json key \"transitions\" : " ^ (Printexc.to_string e))
-        in
-        Result.bind name (fun nm ->
-        Result.bind alphabet (fun alpha ->
-        Result.bind blank (fun blnk ->
-        Result.bind states (fun stats ->
-        Result.bind initial (fun init ->
-        Result.bind finals (fun fin ->
-        Result.bind transitions (fun tr ->
-            Result.Ok {
-                name= nm;
-                alphabet= alpha;
-                blank= blnk;
-                states= stats;
-                initial= init;
-                finals= fin;
-                transitions= [];
-            }
-        )))))))
-        
+    let (name: (string, string) result) = try Result.Ok (j |> member "name" |> to_string)
+                with e -> Result.Error ("Invalid json key \"name\" : " ^ (Printexc.to_string e))
+    in
+    let alphabet = try Result.Ok (j |> member "alphabet" |> to_list |> filter_string)
+                with e -> Result.Error ("Invalid json key \"alphabet\" : " ^ (Printexc.to_string e))
+    in
+    let blank = try Result.Ok (j |> member "blank" |> to_string) 
+                with e -> Result.Error ("Invalid json key \"blank\" : " ^ (Printexc.to_string e))
+    in
+    let states = try Result.Ok (j |> member "states" |> to_list |> filter_string) 
+                with e -> Result.Error ("Invalid json key \"states\" : " ^ (Printexc.to_string e))
+    in
+    let initial = try Result.Ok (j |> member "initial" |> to_string)
+                with e -> Result.Error ("Invalid json key \"initial\" " ^ (Printexc.to_string e))
+    in
+    let finals = try Result.Ok (j |> member "finals" |> to_list |> filter_string) 
+                with e -> Result.Error ("Invalid json key \"finals\" : " ^ (Printexc.to_string e))
+    in
+    let transitions = try Result.Ok (j |> member "transitions") 
+                with e -> Result.Error ("Invalid json key \"transitions\" : " ^ (Printexc.to_string e))
+    in
+    Result.bind name (fun nm ->
+    Result.bind alphabet (fun alpha ->
+    Result.bind blank (fun blnk ->
+    Result.bind states (fun stats ->
+    Result.bind initial (fun init ->
+    Result.bind finals (fun fin ->
+    Result.bind transitions (fun tr ->
+        Result.Ok {
+            name= nm;
+            alphabet= alpha;
+            blank= blnk;
+            states= stats;
+            initial= init;
+            finals= fin;
+            transitions= [];
+        }
+    )))))))
+
 let read_json_file () =
     try Result.Ok (Yojson.Basic.from_file Sys.argv.(1))
     with e -> Result.Error (Printexc.to_string e)
@@ -133,7 +134,7 @@ let () =
     else
         let (json: (Yojson.Basic.t, string) result) = read_json_file () in
         let (res: (unit, string) result) =
-            Result.map print_machine (Result.bind json json_to_machine_string) 
+            Result.bind (Result.bind json json_to_machine_string) print_machine 
         in
         let _ = Result.map_error print_error res in
         ()
