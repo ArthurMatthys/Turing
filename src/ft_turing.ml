@@ -61,7 +61,7 @@ let run (prg: machine) (rb: tape): tape option =
     in
     let transitions: transition option list option = Core.List.nth prg.transitions rb.state in
         Option.bind transitions (fun (ltr_opt: transition option list) ->
-            Option.map do_transition (Option.join (Core.List.nth ltr_opt rb.cur))
+            Option.map do_transition @@ Option.join @@ Core.List.nth ltr_opt rb.cur
         ) 
 
 (*
@@ -72,15 +72,28 @@ let machine_string_to_machine (ms: machine_string): (machine * tape) =
 *)
 
 let print_machine (ms: machine_string): (unit, string) result =
+    let rec list_str_to_str (str:string list): string = match str with
+    | [] -> ""
+    | h::[] -> h
+    | h::t -> h ^ ", " ^ (list_str_to_str t) 
+    in
     let () = Printf.printf "********************************************************************************
 *%78s*
-*%*s%*s*
+*%*s%s%*s*
 *%78s*
-********************************************************************************" "" ((78 - String.length ms.name) / 2) ms.name ((78 - String.length ms.name) / 2) "" ""
-    in Result.Ok ()
-
-
-
+********************************************************************************\n" "" ((78 - String.length ms.name) / 2) "" ms.name ((78 - String.length ms.name) / 2 + (String.length ms.name) mod 2) "" ""
+    in 
+    let () = print_string @@ "Alphabet: [ " ^ (list_str_to_str ms.alphabet) ^ " ]\n" in
+    let () = print_string @@ "States  : [ " ^ (list_str_to_str ms.states) ^ " ]\n" in
+    let () = print_string @@ "Initial : " ^ ms.initial ^ "\n" in
+    let () = print_string @@ "Finals  : [ " ^ (list_str_to_str ms.finals) ^ " ]\n" in
+    let () = List.iter (fun (tr: transition_string_with_state): unit ->
+        List.iter (fun (t:transition_string): unit ->
+            print_string @@ "(" ^ tr.state ^ ", " ^ t.read ^ ") -> (" ^ t.to_state ^ ", " ^ t.write ^ ", " ^ t.action ^ ")\n"
+        ) tr.transition
+    ) ms.transitions
+    in
+    Result.Ok ()
 
 let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result =
     let open Yojson.Basic.Util in
@@ -102,7 +115,22 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
     let finals = try Result.Ok (j |> member "finals" |> to_list |> filter_string) 
                 with e -> Result.Error ("Invalid json key \"finals\" : " ^ (Printexc.to_string e))
     in
-    let transitions = try Result.Ok (j |> member "transitions") 
+    let get_transitions (states: string list) (j: Yojson.Basic.t): transition_string_with_state list =
+        List.filter_map (fun (e: string): transition_string_with_state option -> 
+            try Some {
+                state= e;
+                transition= j |> member e |> to_list |> (List.map (fun (j: Yojson.Basic.t) -> {
+                        read= j |> member "read" |> to_string;
+                        to_state= j |> member "to_state" |> to_string;
+                        write= j |> member "write" |> to_string;
+                        action= j |> member "action" |> to_string;
+                    }
+                ))
+            }
+            with e -> None
+        ) states
+    in
+    let transitions = try Result.Ok (j |> member "transitions" |> (get_transitions @@ Result.get_ok states))
                 with e -> Result.Error ("Invalid json key \"transitions\" : " ^ (Printexc.to_string e))
     in
     Result.bind name (fun nm ->
@@ -119,7 +147,7 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
             states= stats;
             initial= init;
             finals= fin;
-            transitions= [];
+            transitions= tr;
         }
     )))))))
 
