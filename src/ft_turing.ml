@@ -120,41 +120,41 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
     let finals = try Result.Ok (j |> member "finals" |> to_list |> filter_string) 
                 with e -> Result.Error ("Invalid json key \"finals\" : " ^ (Printexc.to_string e))
     in
+    let json_to_transition_string (jtr: Yojson.Basic.t): (transition_string, string) result = 
+        let rd = try Result.Ok (jtr |> member "read" |> to_string)
+                with er -> Result.Error ("Invalid json key \"read\" : " ^ (Printexc.to_string er))
+        in
+        let tstate = try Result.Ok (jtr |> member "to_state" |> to_string)
+                with er -> Result.Error ("Invalid json key \"to_state\" : " ^ (Printexc.to_string er))
+        in
+        let wr = try Result.Ok (jtr |> member "write" |> to_string)
+                with er -> Result.Error ("Invalid json key \"write\" : " ^ (Printexc.to_string er))
+        in
+        let act = try Result.Ok (jtr |> member "action" |> to_string)
+                with er -> Result.Error ("Invalid json key \"action\" : " ^ (Printexc.to_string er))
+        in
+        Result.bind rd (fun r ->
+        Result.bind tstate (fun ts ->
+        Result.bind wr (fun w ->
+        Result.bind act (fun a: (transition_string, string) result -> Result.Ok {
+            read= r;
+            to_state= ts;
+            write= w;
+            action= a;
+        }
+        ))))
+    in
     let get_transitions (j: Yojson.Basic.t) (states: string list): (transition_string_with_state list, string) result =
         list_result_flip @@ List.filter_map (fun (e: string): (transition_string_with_state, string) result option -> 
             let (trstr: Yojson.Basic.t list option) = try Some (j |> member e |> to_list)
                         with e -> None
             in
             Option.map (fun (jtrl: Yojson.Basic.t list) : (transition_string_with_state, string) result ->
-                let (transition: (transition_string, string) result list) = List.map (fun (jtr: Yojson.Basic.t): (transition_string, string) result ->
-                    let rd = try Result.Ok (jtr |> member "read" |> to_string)
-                            with er -> Result.Error ("Invalid json key \"read\" : " ^ (Printexc.to_string er) ^ " in transition " ^ e)
-                    in
-                    let tstate = try Result.Ok (jtr |> member "to_state" |> to_string)
-                            with er -> Result.Error ("Invalid json key \"to_state\" : " ^ (Printexc.to_string er) ^ " in transition " ^ e)
-                    in
-                    let wr = try Result.Ok (jtr |> member "write" |> to_string)
-                            with er -> Result.Error ("Invalid json key \"write\" : " ^ (Printexc.to_string er) ^ " in transition " ^ e)
-                    in
-                    let act = try Result.Ok (jtr |> member "action" |> to_string)
-                            with er -> Result.Error ("Invalid json key \"action\" : " ^ (Printexc.to_string er) ^ " in transition " ^ e)
-                    in
-                    Result.bind rd (fun r ->
-                    Result.bind tstate (fun ts ->
-                    Result.bind wr (fun w ->
-                    Result.bind act (fun a: (transition_string, string) result -> Result.Ok {
-                        read= r;
-                        to_state= ts;
-                        write= w;
-                        action= a;
-                    }
-                    ))))
-                ) jtrl
-                in
+                let (transition: (transition_string, string) result list) = List.map json_to_transition_string jtrl in
                 let tr_error = List.filter Result.is_error transition in
                 if List.length tr_error > 0
                 then
-                    Result.Error (Result.get_error @@ List.hd tr_error)
+                    Result.Error (Result.get_error @@ Result.map_error (fun msg -> msg ^ " in transition " ^ e) @@ List.hd tr_error)
                 else
                     Result.Ok {
                         state=e;
