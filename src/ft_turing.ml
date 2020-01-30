@@ -41,6 +41,7 @@ type tape = {
     state: int; (* index transition *)
 }
 
+
 let print_error (str: string): unit =
     let () = print_string str in
     print_newline ()
@@ -86,8 +87,8 @@ type tape = {
     state: int; (* index transition *)
 }
  *)
-let machine_string_to_machine (ms: machine_string): (machine * tape) = 
 
+let machine_string_to_machine (ms:machine_string): (tape * machine) = ()
 
 let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
     let ler = List.filter Result.is_error lr in
@@ -95,7 +96,7 @@ let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
     then Result.Error (Result.get_error @@ List.hd ler)
     else Result.Ok (List.map Result.get_ok lr)
 
-let print_machine (ms: machine_string): (unit, string) result =
+let print_machine (ms: machine_string): unit =
     let rec list_str_to_str (str:string list): string = match str with
     | [] -> ""
     | h::[] -> h
@@ -116,8 +117,7 @@ let print_machine (ms: machine_string): (unit, string) result =
             print_string @@ "(" ^ tr.state ^ ", " ^ t.read ^ ") -> (" ^ t.to_state ^ ", " ^ t.write ^ ", " ^ t.action ^ ")\n"
         ) tr.transition
     ) ms.transitions
-    in
-    Result.Ok ()
+    in ()
 
 let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result =
     let open Yojson.Basic.Util in
@@ -203,8 +203,8 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
         }
     )))))))
 
-let read_json_file () =
-    try Result.Ok (Yojson.Basic.from_file Sys.argv.(1))
+let read_json_file (arg_json:string) =
+    try Result.Ok (Yojson.Basic.from_file arg_json)
     with e -> Result.Error (Printexc.to_string e)
 
 let has_duplicates (lst:'a list): bool =
@@ -214,7 +214,7 @@ let check_transitions (tr:transition_string_with_state list) (seek: transition_s
     let tr_err = List.flatten @@ List.map (fun (tr_str:transition_string_with_state) -> List.map (fun e -> Result.map_error ((^) @@ tr_str.state ^ ": ") (seek e) ) tr_str.transition) tr in
     Result.map (fun _ -> ()) @@ list_result_flip tr_err 
 
-let check_machine (ms: machine_string): (unit, string) result = (
+let check_machine (ms: machine_string): (machine_string, string) result = (
     if not @@ List.exists ((=) ms.initial) ms.states
     then Result.Error (ms.initial ^ " (inital value) is not in states list")
     else if not @@ List.for_all (fun (f:string): bool -> List.exists ((=) f) ms.states) ms.finals
@@ -235,19 +235,31 @@ let check_machine (ms: machine_string): (unit, string) result = (
             )
         in
         Result.bind tr_res (fun _ ->
-            if has_duplicates ms.alphabet then Result.Error "Duplicates in alphabet"
+            if List.exists (fun e -> String.length e <> 1) ms.alphabet then Result.Error "member of alphabet are longer than a single character"
+            else if has_duplicates ms.alphabet then Result.Error "Duplicates in alphabet"
             else if has_duplicates ms.states then Result.Error "Duplicates in states" 
-            else Result.Ok ()
+            else Result.Ok ms
           ) 
 )
+
+let explode s :(string list)=
+    let rec exp i l =
+        if i < 0 then l else exp (i - 1) (Char.escaped s.[i] :: l) in
+    exp (String.length s - 1) []
+
+let check_intructions (ms: machine_string) (arg_instruction:string): (unit, string) result =
+    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) @@ explode arg_instruction then Result.Ok ()
+    else Result.Error "Wrong character in instruction"
 
 let () =
     if Array.length Sys.argv <> 3 then
         let () = print_string "./ft_turing <config.jsoin> <input string>\n" in
         let _ = Exit in ()
     else
-        let (json: (Yojson.Basic.t, string) result) = read_json_file () in
+        let (json: (Yojson.Basic.t, string) result) = read_json_file Sys.argv.(1) in
         let _ = Result.map_error print_error @@
-             Result.map machine_string_to_machine @@
-               Result.bind (Result.bind json json_to_machine_string) check_machine  
+             Result.map (fun (ms:machine_string) ->
+              let machine = machine_string_to_machine ms in
+              ()
+            ) @@ Result.bind (Result.bind json json_to_machine_string) check_machine
         in ()
