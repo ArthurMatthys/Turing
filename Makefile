@@ -8,7 +8,7 @@ CC_INT = ocamlc
 
 SIDE_DIR = ./_build/
 
-CFLAGS += -linkpkg -thread -w A -package $(PKG)
+CFLAGS += -linkpkg -thread -package $(PKG)
 
 # **************************************************************************** #
 #                                  SOURCES                                     #
