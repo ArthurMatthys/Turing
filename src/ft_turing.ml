@@ -70,6 +70,11 @@ let machine_string_to_machine (ms: machine_string): (machine * tape) =
 
 ;;
 *)
+let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
+    let ler = List.filter Result.is_error lr in
+    if List.length ler > 0
+    then Result.Error (Result.get_error @@ List.hd ler)
+    else Result.Ok (List.map Result.get_ok lr)
 
 let print_machine (ms: machine_string): (unit, string) result =
     let rec list_str_to_str (str:string list): string = match str with
@@ -115,8 +120,8 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
     let finals = try Result.Ok (j |> member "finals" |> to_list |> filter_string) 
                 with e -> Result.Error ("Invalid json key \"finals\" : " ^ (Printexc.to_string e))
     in
-    let get_transitions (states: string list) (j: Yojson.Basic.t): (transition_string_with_state list, string) result =
-        let ls_res = List.filter_map (fun (e: string): (transition_string_with_state, string) result option -> 
+    let get_transitions (j: Yojson.Basic.t) (states: string list): (transition_string_with_state list, string) result =
+        list_result_flip @@ List.filter_map (fun (e: string): (transition_string_with_state, string) result option -> 
             let (trstr: Yojson.Basic.t list option) = try Some (j |> member e |> to_list)
                         with e -> None
             in
@@ -157,15 +162,8 @@ let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result 
                     }
             ) trstr
         ) states
-        in
-        let (ls_error: (transition_string_with_state, string) result list) = List.filter Result.is_error ls_res in
-        if List.length ls_error > 0
-        then
-            Result.Error (Result.get_error @@ List.hd ls_error)
-        else
-            Result.Ok (List.map Result.get_ok ls_res)
     in
-    let transitions = try (j |> member "transitions" |> (get_transitions @@ Result.get_ok states))
+    let transitions = try Result.bind states @@ get_transitions @@ member "transitions" j
                 with e -> Result.Error ("Invalid json key \"transitions\" : " ^ (Printexc.to_string e))
     in
     Result.bind name (fun nm ->
