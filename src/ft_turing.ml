@@ -88,7 +88,12 @@ type tape = {
 }
  *)
 
-let machine_string_to_machine (ms:machine_string): (tape * machine) = ()
+let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * machine) = 
+  let tp = {right=List.tl instr;
+            left=[];
+            cur=0;
+            state=0;
+    }    
 
 let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
     let ler = List.filter Result.is_error lr in
@@ -247,8 +252,8 @@ let explode s :(string list)=
         if i < 0 then l else exp (i - 1) (Char.escaped s.[i] :: l) in
     exp (String.length s - 1) []
 
-let check_intructions (ms: machine_string) (arg_instruction:string): (unit, string) result =
-    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) @@ explode arg_instruction then Result.Ok ()
+let check_intructions (ms: machine_string) (arg_instruction:string list): (machine_string, string) result =
+    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) @@ explode arg_instruction then Result.Ok ms
     else Result.Error "Wrong character in instruction"
 
 let () =
@@ -257,9 +262,10 @@ let () =
         let _ = Exit in ()
     else
         let (json: (Yojson.Basic.t, string) result) = read_json_file Sys.argv.(1) in
+        let lst_instr = explode Sys.argv.(2) in
         let _ = Result.map_error print_error @@
              Result.map (fun (ms:machine_string) ->
-              let machine = machine_string_to_machine ms in
+              let machine = machine_string_to_machine ms lst_instr in
               ()
-            ) @@ Result.bind (Result.bind json json_to_machine_string) check_machine
+            ) @@ Result.bind (Result.bind (Result.bind json json_to_machine_string) check_machine) lst_instr
         in ()
