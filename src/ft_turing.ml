@@ -64,6 +64,25 @@ let explode s :(string list)=
 
 (* --- *)
 
+let print_rb (rb: tape) (alphabet: string list) (states: string list) (blank:string): unit = 
+    let rec list_to_string (lst: int list) (width: int) : string = if width <> 0 then "" 
+    else match lst with
+    | [] -> blank ^ (list_to_string lst (width-1))
+    | h::t -> (List.nth alphabet h) ^ (list_to_string t (width-1))
+    in
+    print_string @@ "[" ^ (list_to_string rb.left 10) ^ "<" ^ (List.nth alphabet rb.cur) ^ ">" ^ (list_to_string rb.right 10) ^ "] (" ^ (List.nth states rb.state) ^ ", " ^ (List.nth alphabet rb.cur) ^ ") -> "
+
+
+let print_tr (tr: transition) (alphabet: string list) (states: string list): unit =
+    print_string @@ "(" ^ (List.nth states tr.to_state) ^ ", " ^ (List.nth alphabet tr.write) ^ ", " ^ (if tr.action then "RIGHT)\n" else "LEFT)\n") 
+
+(*
+type transition = {
+  to_state: int; (* index transition *)
+  write: int; (* index alphabet *)
+  action: bool; (* true: right false: left *)
+}
+*)
 let print_error = prerr_endline
 
 let do_transition (rb: tape) (tr: transition): tape =
