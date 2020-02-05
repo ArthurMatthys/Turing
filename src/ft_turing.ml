@@ -65,11 +65,16 @@ let index_of (l: 'a list) (e: 'a): int option=
     in
     search l 0
 
-let explode s :(string list)=
+let explode s : string list=
     let rec exp i l =
         if i < 0 then l else exp (i - 1) (Char.escaped s.[i] :: l) in
     exp (String.length s - 1) []
 
+let string_rev str =
+   let rec aux  idx = match idx with
+     0 -> Char.escaped (str.[0])
+   | _ -> (Char.escaped str.[idx]) ^ (aux (idx-1)) in
+  aux ((String.length str)-1)
 (* --- *)
 
 let print_rb (rb: tape) (ms: machine_string): unit = 
@@ -80,7 +85,7 @@ let print_rb (rb: tape) (ms: machine_string): unit =
         | [] -> ms.blank ^ (list_to_string lst (width-1))
         | h::t -> (List.nth ms.alphabet h) ^ (list_to_string t (width-1))
     in
-    print_string @@ "[" ^ (list_to_string rb.left 10) ^
+    print_string @@ "[" ^ (string_rev (list_to_string rb.left 10)) ^
      "<" ^ (List.nth ms.alphabet rb.cur) ^ ">" ^
       (list_to_string rb.right 10) ^ "] (" ^
        (List.nth ms.states rb.state) ^ ", " ^
@@ -107,17 +112,17 @@ let do_transition (rb: tape) (tr: transition): tape =
     }
 
 let rec print_lst (lst:string list) = match lst with
-| [] -> ()
-| h::t -> print_endline h; print_lst t
+| [] -> print_newline ()
+| h::t -> print_string @@ "|" ^ h ^ "|" ^ " -> "; print_lst t
 
 let rec print_lst_from_int (lst:int list) = match lst with
-| [] -> ()
-| h::t -> print_endline @@ string_of_int h; print_lst_from_int t
+| [] -> print_newline ()
+| h::t -> print_string @@ "|" ^ string_of_int h ^ "|" ^ " -> "; print_lst_from_int t
 
-let print_machine (prg:machine): unit = 
+let print_machine (prg:machine) (ms:machine_string): unit = 
     let () = print_lst_from_int prg.finals in 
     let _ = List.iter (fun (trllst, i) -> 
-    let () = print_endline @@ string_of_int i in
+    let () = print_endline @@ List.nth ms.states i in
     if Option.is_none trllst
     then print_endline "None"
     else 
@@ -126,9 +131,9 @@ let print_machine (prg:machine): unit =
             then let () = print_endline "\tNone" in ()
             else
                 let tr = Option.get tr_opt in
-                let () = print_endline @@ "\tto_state: " ^ string_of_int tr.to_state in
-                let () = print_endline @@ "\twrite: " ^ string_of_int tr.write in
-                let () = print_endline @@ "\taction: " ^ string_of_bool tr.action in ()
+                let () = print_string @@ "\tto_state: " ^ string_of_int tr.to_state in
+                let () = print_string @@ " // write: " ^ string_of_int tr.write in
+                let () = print_endline @@ " // action: " ^ string_of_bool tr.action in ()
         ) (Option.get trllst) 
         in ()
     ) @@ indexed prg.transitions in ()
@@ -146,11 +151,10 @@ let get_next_tr (prg: machine) (rb: tape): (transition, string) result =
          else Result.ok @@ Option.get tr
 
 let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
-    let () = print_lst(ms.states) in
-    let () = print_machine prg in
+    let () = print_machine prg ms in
     let (rbr: tape ref) = ref rb in
     let (er: (unit, string) result ref) = ref @@ Result.Ok () in
-    while Result.is_ok !er && not @@ List.exists ((==) !rbr.state) prg.finals do
+    while Result.is_ok !er && not @@ List.exists ((=) !rbr.state) prg.finals do
         let tr = get_next_tr prg !rbr in
         if Result.is_error tr
         then
@@ -163,25 +167,27 @@ let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
     done;
     !er
 
-let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * machine) = 
-    let (ms_order: machine_string) = {
-        name=ms.name;
-        alphabet= ms.blank :: (List.filter ((!=) ms.blank) ms.alphabet);
-        blank= ms.blank;
-        states= ms.initial :: (List.filter ((!=) ms.initial) ms.states);
-        initial= ms.initial;
-        finals= ms.finals;
-        transitions= ms.transitions;
-    }
-    in
+let order_machine_string (ms: machine_string): machine_string = {
+    name=ms.name;
+    alphabet= ms.blank :: (List.filter (fun e -> not @@ String.equal e ms.blank) ms.alphabet);
+    blank= ms.blank;
+    states= ms.initial :: (List.filter (fun e -> not @@ String.equal e ms.initial) ms.states);
+    initial= ms.initial;
+    finals= ms.finals;
+    transitions= ms.transitions;
+}
+
+let machine_string_to_machine (ms_order:machine_string) (instr:string list): (tape * machine) = 
+    let () = print_lst ms_order.alphabet in
+    let () = print_lst ms_order.states in
     let transition_of_state (s: string): transition option list option =
         let (tr:  transition_string_with_state option) =
-            List.find_opt (fun (trsws: transition_string_with_state) -> trsws.state == s) ms_order.transitions
+            List.find_opt (fun (trsws: transition_string_with_state) -> String.equal trsws.state s) ms_order.transitions
         in
         let sort_tr (tr: transition_string_with_state): transition option list = 
             let find_tr (a: string): transition option =
                 let (trs_opt: transition_string option) =
-                    List.find_opt (fun (trs:transition_string) -> trs.read == a) tr.transition
+                    List.find_opt (fun (trs:transition_string) -> String.equal trs.read a) tr.transition
                 in
                 let trs_to_tr (trs: transition_string): transition = {
                     to_state= Option.get @@ index_of ms_order.states trs.to_state;
@@ -206,6 +212,7 @@ let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * m
         cur= if List.length lst_instr_index > 1 then List.hd lst_instr_index else 0;
         state= 0;
     } in
+    let () = print_lst_from_int tp.right in
     (tp, ma)
 
 let print_machine (ms: machine_string): unit =
@@ -357,7 +364,7 @@ let check_machine (ms: machine_string): (machine_string, string) result = (
 )
 
 let check_intructions (ms: machine_string) (arg_instruction:string list): (unit, string) result =
-    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) arg_instruction
+    if List.for_all (fun c -> List.exists (String.equal c) ms.alphabet) arg_instruction
     then Result.Ok ()
     else Result.Error "Wrong character in instruction"
 
@@ -380,7 +387,8 @@ let _ =
             then print_error @@ Result.get_error error_lst_instr
             else
                 let () = print_machine ms in
-                let (rb, mach) = machine_string_to_machine ms lst_instr in
-                let er = run mach rb ms in
+                let ms_order = order_machine_string ms in
+                let (rb, mach) = machine_string_to_machine ms_order lst_instr in
+                let er = run mach rb ms_order in
                 let _ = Result.map_error print_error er in
                     ()
