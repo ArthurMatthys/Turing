@@ -66,31 +66,31 @@ let explode s :(string list)=
 
 let print_error = prerr_endline
 
-let exec_inst (prg: machine) (rb: tape): (tape, string) result = 
-    let do_transition (tr: transition): tape =
-        if tr.action then {
-            right=if List.length rb.right > 0 then List.tl rb.right else [];
-            left=rb.cur :: rb.left;
-            cur=if List.length rb.right > 0 then List.hd rb.right else 0;
-            state=tr.to_state;
-        } else {
-            right=rb.cur :: rb.right;
-            left=if List.length rb.left > 0 then List.tl rb.left else [];
-            cur=if List.length rb.left > 0 then List.hd rb.left else 0;
-            state=tr.to_state;
-        }
-    in
+let do_transition (rb: tape) (tr: transition): tape =
+    if tr.action then {
+        right=if List.length rb.right > 0 then List.tl rb.right else [];
+        left=rb.cur :: rb.left;
+        cur=if List.length rb.right > 0 then List.hd rb.right else 0;
+        state=tr.to_state;
+    } else {
+        right=rb.cur :: rb.right;
+        left=if List.length rb.left > 0 then List.tl rb.left else [];
+        cur=if List.length rb.left > 0 then List.hd rb.left else 0;
+        state=tr.to_state;
+    }
+
+let get_next_tr (prg: machine) (rb: tape): (transition, string) result = 
     let transitions: transition option list option = Option.get @@ Core.List.nth prg.transitions rb.state in
     if Option.is_none transitions then Result.error "The transition named in the previous instruction wasn't found in the transtion table"
     else let trs = Option.get transitions in
          let tr = Option.get @@ Core.List.nth trs rb.cur in 
          if Option.is_none tr then Result.error "In this state, the character read has no use"
-         else Result.ok @@ do_transition @@ Option.get tr
-        
-let run (prg: machine) (rb: tape) = ()
+         else Result.ok @@ Option.get tr
 
+let rec run (prg: machine) (rb: tape) (ms: machine_string): unit =
+    if 
 
-
+;;
 let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * machine) = 
     let (ms_order: machine_string) = {
         name=ms.name;
@@ -308,5 +308,5 @@ let _ =
             else
                 let () = print_machine (Result.get_ok machine_string_res) in
                 let (rb, mach) = machine_string_to_machine (Result.get_ok machine_string_res) lst_instr in
-                let _ = run mach rb in
+                let _ = run mach rb (Result.get_ok machine_string_res) in
                     ()
