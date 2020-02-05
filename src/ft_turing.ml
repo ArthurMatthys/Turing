@@ -41,6 +41,14 @@ type tape = {
     state: int; (* index transition *)
 }
 
+let indexed (l: 'a list): ('a * int) list =
+  let rec indexed_rec (l: 'a list) (i: int): ('a * int) list =
+    match l with
+      [] -> []
+      | h :: t -> (h, i) :: (indexed_rec t (i + 1))
+  in
+  indexed_rec l 0
+
 let cpe (f1: 'a -> ('b, 'e) result) (f2: 'b -> ('c, 'e) result): 'a -> ('c, 'e) result =
     (fun a -> Result.bind (f1 a) f2 )
 
@@ -64,26 +72,26 @@ let explode s :(string list)=
 
 (* --- *)
 
-let print_rb (rb: tape) (alphabet: string list) (states: string list) (blank:string): unit = 
-    let rec list_to_string (lst: int list) (width: int) : string = if width <> 0 then "" 
+let print_rb (rb: tape) (ms: machine_string): unit = 
+    let rec list_to_string (lst: int list) (width: int) : string =
+    if width == 0
+    then "" 
     else match lst with
-    | [] -> blank ^ (list_to_string lst (width-1))
-    | h::t -> (List.nth alphabet h) ^ (list_to_string t (width-1))
+        | [] -> ms.blank ^ (list_to_string lst (width-1))
+        | h::t -> (List.nth ms.alphabet h) ^ (list_to_string t (width-1))
     in
-    print_string @@ "[" ^ (list_to_string rb.left 10) ^ "<" ^ (List.nth alphabet rb.cur) ^ ">" ^ (list_to_string rb.right 10) ^ "] (" ^ (List.nth states rb.state) ^ ", " ^ (List.nth alphabet rb.cur) ^ ") -> "
+    print_string @@ "[" ^ (list_to_string rb.left 10) ^
+     "<" ^ (List.nth ms.alphabet rb.cur) ^ ">" ^
+      (list_to_string rb.right 10) ^ "] (" ^
+       (List.nth ms.states rb.state) ^ ", " ^
+        (List.nth ms.alphabet rb.cur) ^ ") -> "
 
+let print_tr (tr: transition) (ms: machine_string): unit =
+    print_string @@ "(" ^ (List.nth ms.states tr.to_state) ^ ", " ^
+     (List.nth ms.alphabet tr.write) ^ ", " ^
+      (if tr.action then "RIGHT)\n" else "LEFT)\n") 
 
-let print_tr (tr: transition) (alphabet: string list) (states: string list): unit =
-    print_string @@ "(" ^ (List.nth states tr.to_state) ^ ", " ^ (List.nth alphabet tr.write) ^ ", " ^ (if tr.action then "RIGHT)\n" else "LEFT)\n") 
-
-(*
-type transition = {
-  to_state: int; (* index transition *)
-  write: int; (* index alphabet *)
-  action: bool; (* true: right false: left *)
-}
-*)
-let print_error = prerr_endline
+let print_error = print_endline
 
 let do_transition (rb: tape) (tr: transition): tape =
     if tr.action then {
@@ -98,18 +106,63 @@ let do_transition (rb: tape) (tr: transition): tape =
         state=tr.to_state;
     }
 
+let rec print_lst (lst:string list) = match lst with
+| [] -> ()
+| h::t -> print_endline h; print_lst t
+
+let rec print_lst_from_int (lst:int list) = match lst with
+| [] -> ()
+| h::t -> print_endline @@ string_of_int h; print_lst_from_int t
+
+let print_machine (prg:machine): unit = 
+    let () = print_lst_from_int prg.finals in 
+    let _ = List.iter (fun (trllst, i) -> 
+    let () = print_endline @@ string_of_int i in
+    if Option.is_none trllst
+    then print_endline "None"
+    else 
+        let _ = List.iter (fun (tr_opt:transition option) ->
+            if Option.is_none tr_opt
+            then let () = print_endline "\tNone" in ()
+            else
+                let tr = Option.get tr_opt in
+                let () = print_endline @@ "\tto_state: " ^ string_of_int tr.to_state in
+                let () = print_endline @@ "\twrite: " ^ string_of_int tr.write in
+                let () = print_endline @@ "\taction: " ^ string_of_bool tr.action in ()
+        ) (Option.get trllst) 
+        in ()
+    ) @@ indexed prg.transitions in ()
+
+let print_tran (tr:transition): unit =
+    print_string @@ (string_of_int tr.to_state) ^ (string_of_int tr.write) ^ (string_of_bool tr.action)
+
 let get_next_tr (prg: machine) (rb: tape): (transition, string) result = 
-    let transitions: transition option list option = Option.get @@ Core.List.nth prg.transitions rb.state in
+    let () = print_string @@ string_of_int rb.state in
+    let transitions: transition option list option = List.nth prg.transitions rb.state in
     if Option.is_none transitions then Result.error "The transition named in the previous instruction wasn't found in the transtion table"
     else let trs = Option.get transitions in
-         let tr = Option.get @@ Core.List.nth trs rb.cur in 
+         let tr = List.nth trs rb.cur in 
          if Option.is_none tr then Result.error "In this state, the character read has no use"
          else Result.ok @@ Option.get tr
 
-let rec run (prg: machine) (rb: tape) (ms: machine_string): unit =
-    if 
+let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
+    let () = print_lst(ms.states) in
+    let () = print_machine prg in
+    let (rbr: tape ref) = ref rb in
+    let (er: (unit, string) result ref) = ref @@ Result.Ok () in
+    while Result.is_ok !er && not @@ List.exists ((==) !rbr.state) prg.finals do
+        let tr = get_next_tr prg !rbr in
+        if Result.is_error tr
+        then
+            er := Result.error @@ Result.get_error tr
+        else
+            let () = print_rb !rbr ms in
+            let () = print_tr (Result.get_ok tr) ms in
+            rbr := do_transition !rbr @@ Result.get_ok tr;
+            ()
+    done;
+    !er
 
-;;
 let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * machine) = 
     let (ms_order: machine_string) = {
         name=ms.name;
@@ -321,11 +374,13 @@ let _ =
         if Result.is_error machine_string_res
         then print_error @@ Result.get_error machine_string_res
         else 
-            let error_lst_instr = check_intructions (Result.get_ok machine_string_res) lst_instr in
+            let ms = Result.get_ok machine_string_res in
+            let error_lst_instr = check_intructions ms lst_instr in
             if Result.is_error error_lst_instr
             then print_error @@ Result.get_error error_lst_instr
             else
-                let () = print_machine (Result.get_ok machine_string_res) in
-                let (rb, mach) = machine_string_to_machine (Result.get_ok machine_string_res) lst_instr in
-                let _ = run mach rb (Result.get_ok machine_string_res) in
+                let () = print_machine ms in
+                let (rb, mach) = machine_string_to_machine ms lst_instr in
+                let er = run mach rb ms in
+                let _ = Result.map_error print_error er in
                     ()
