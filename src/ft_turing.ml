@@ -8,7 +8,7 @@ type transition = {
 
 type machine = {
     finals: int list;
-    transitions: transition option list list;
+    transitions: transition option list  option list;
 }
 
 type transition_string = {
@@ -41,13 +41,33 @@ type tape = {
     state: int; (* index transition *)
 }
 
+let cpe (f1: 'a -> ('b, 'e) result) (f2: 'b -> ('c, 'e) result): 'a -> ('c, 'e) result =
+    (fun a -> Result.bind (f1 a) f2 )
 
-let print_error (str: string): unit =
-    let () = print_string str in
-    print_newline ()
+let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
+    let ler = List.filter Result.is_error lr in
+    if List.length ler > 0
+    then Result.Error (Result.get_error @@ List.hd ler)
+    else Result.Ok (List.map Result.get_ok lr)
 
-let run (prg: machine) (rb: tape): tape option = 
-    let do_transition (tr: transition) =
+let index_of (l: 'a list) (e: 'a): int option=
+    let rec search l i = match l with
+    | [] -> None
+    | h::t -> if h = e then Some i else search t (i+1)
+    in
+    search l 0
+
+let explode s :(string list)=
+    let rec exp i l =
+        if i < 0 then l else exp (i - 1) (Char.escaped s.[i] :: l) in
+    exp (String.length s - 1) []
+
+(* --- *)
+
+let print_error = prerr_endline
+
+let exec_inst (prg: machine) (rb: tape): (tape, string) result = 
+    let do_transition (tr: transition): tape =
         if tr.action then {
             right=if List.length rb.right > 0 then List.tl rb.right else [];
             left=rb.cur :: rb.left;
@@ -60,46 +80,61 @@ let run (prg: machine) (rb: tape): tape option =
             state=tr.to_state;
         }
     in
-    let transitions: transition option list option = Core.List.nth prg.transitions rb.state in
-        Option.bind transitions (fun (ltr_opt: transition option list) ->
-            Option.map do_transition @@ Option.join @@ Core.List.nth ltr_opt rb.cur
-        ) 
-(*
-type machine = {
-    finals: int list;
-    transitions: transition option list list;
-}
-type machine_string = {
-    name: string;
-    alphabet: string list;
-    blank: string;
-    states: string list;
-    initial: string;
-    finals: string list;
-    transitions: transition_string_with_state list;
-}
+    let transitions: transition option list option = Option.get @@ Core.List.nth prg.transitions rb.state in
+    if Option.is_none transitions then Result.error "The transition named in the previous instruction wasn't found in the transtion table"
+    else let trs = Option.get transitions in
+         let tr = Option.get @@ Core.List.nth trs rb.cur in 
+         if Option.is_none tr then Result.error "In this state, the character read has no use"
+         else Result.ok @@ do_transition @@ Option.get tr
+        
+let run (prg: machine) (rb: tape) = ()
 
-(* alphabet index 0 is blank *)
-type tape = {
-    right: int list; (* list index alphabet *)
-    left: int list; (* list index alphabet *)
-    cur: int; (* index alphabet *)
-    state: int; (* index transition *)
-}
- *)
+
 
 let machine_string_to_machine (ms:machine_string) (instr:string list): (tape * machine) = 
-  let tp = {right=List.tl instr;
-            left=[];
-            cur=0;
-            state=0;
-    }    
-
-let list_result_flip (lr: ('a, 'b) result list) : ('a list, 'b) result =
-    let ler = List.filter Result.is_error lr in
-    if List.length ler > 0
-    then Result.Error (Result.get_error @@ List.hd ler)
-    else Result.Ok (List.map Result.get_ok lr)
+    let (ms_order: machine_string) = {
+        name=ms.name;
+        alphabet= ms.blank :: (List.filter ((!=) ms.blank) ms.alphabet);
+        blank= ms.blank;
+        states= ms.initial :: (List.filter ((!=) ms.initial) ms.states);
+        initial= ms.initial;
+        finals= ms.finals;
+        transitions= ms.transitions;
+    }
+    in
+    let transition_of_state (s: string): transition option list option =
+        let (tr:  transition_string_with_state option) =
+            List.find_opt (fun (trsws: transition_string_with_state) -> trsws.state == s) ms_order.transitions
+        in
+        let sort_tr (tr: transition_string_with_state): transition option list = 
+            let find_tr (a: string): transition option =
+                let (trs_opt: transition_string option) =
+                    List.find_opt (fun (trs:transition_string) -> trs.read == a) tr.transition
+                in
+                let trs_to_tr (trs: transition_string): transition = {
+                    to_state= Option.get @@ index_of ms_order.states trs.to_state;
+                    write= Option.get @@ index_of ms_order.alphabet trs.write;
+                    action= trs.action = "RIGHT"
+                } in
+                Option.map trs_to_tr trs_opt
+            in
+            List.map find_tr ms_order.alphabet
+        in
+        Option.map sort_tr tr
+    in
+    let (ma: machine) = {
+        finals= List.filter_map (fun s -> index_of ms_order.states s) ms_order.finals;
+        transitions=List.map transition_of_state ms_order.states;
+    }
+    in 
+    let (lst_instr_index: int list) = List.filter_map (index_of ms_order.alphabet) instr in
+    let (tp: tape) = {
+        right= if List.length lst_instr_index > 1 then List.tl lst_instr_index else [];
+        left= [];
+        cur= if List.length lst_instr_index > 1 then List.hd lst_instr_index else 0;
+        state= 0;
+    } in
+    (tp, ma)
 
 let print_machine (ms: machine_string): unit =
     let rec list_str_to_str (str:string list): string = match str with
@@ -122,7 +157,9 @@ let print_machine (ms: machine_string): unit =
             print_string @@ "(" ^ tr.state ^ ", " ^ t.read ^ ") -> (" ^ t.to_state ^ ", " ^ t.write ^ ", " ^ t.action ^ ")\n"
         ) tr.transition
     ) ms.transitions
-    in ()
+    in 
+    let () = Printf.printf "********************************************************************************\n"
+    in () 
 
 let json_to_machine_string (j: Yojson.Basic.t): (machine_string, string) result =
     let open Yojson.Basic.Util in
@@ -247,25 +284,29 @@ let check_machine (ms: machine_string): (machine_string, string) result = (
           ) 
 )
 
-let explode s :(string list)=
-    let rec exp i l =
-        if i < 0 then l else exp (i - 1) (Char.escaped s.[i] :: l) in
-    exp (String.length s - 1) []
-
-let check_intructions (ms: machine_string) (arg_instruction:string list): (machine_string, string) result =
-    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) @@ explode arg_instruction then Result.Ok ms
+let check_intructions (ms: machine_string) (arg_instruction:string list): (unit, string) result =
+    if List.for_all (fun c -> List.exists ((=) c) ms.alphabet) arg_instruction
+    then Result.Ok ()
     else Result.Error "Wrong character in instruction"
 
-let () =
+let _ =
     if Array.length Sys.argv <> 3 then
         let () = print_string "./ft_turing <config.jsoin> <input string>\n" in
         let _ = Exit in ()
     else
         let (json: (Yojson.Basic.t, string) result) = read_json_file Sys.argv.(1) in
         let lst_instr = explode Sys.argv.(2) in
-        let _ = Result.map_error print_error @@
-             Result.map (fun (ms:machine_string) ->
-              let machine = machine_string_to_machine ms lst_instr in
-              ()
-            ) @@ Result.bind (Result.bind (Result.bind json json_to_machine_string) check_machine) lst_instr
-        in ()
+        let (machine_string_res: (machine_string, string) result) = 
+            Result.bind (Result.bind json json_to_machine_string) check_machine
+        in
+        if Result.is_error machine_string_res
+        then print_error @@ Result.get_error machine_string_res
+        else 
+            let error_lst_instr = check_intructions (Result.get_ok machine_string_res) lst_instr in
+            if Result.is_error error_lst_instr
+            then print_error @@ Result.get_error error_lst_instr
+            else
+                let () = print_machine (Result.get_ok machine_string_res) in
+                let (rb, mach) = machine_string_to_machine (Result.get_ok machine_string_res) lst_instr in
+                let _ = run mach rb in
+                    ()
