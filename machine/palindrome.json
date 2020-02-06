@@ -1,28 +1,50 @@
 {
 	"name" : "palindrome",
-	"alphabet": [ "1", ".", "-", "=" ],
+	"alphabet": [ "0", "1", ".", "y", "n"],
 	"blank" : ".",
-	"states" : [ "scanright", "eraseone", "subone", "skip", "HALT" ],
+	"states" : [ "scanright", "scanleft", "buff0", "state0", "comp0", "buff1", "state1", "comp1", "HALT" ],
 	"initial" : "scanright",
 	"finals" : [ "HALT" ],
 	"transitions" : {
 		"scanright": [
-			{ "read" : ".", "to_state": "scanright", "write": ".", "action": "RIGHT"},
-			{ "read" : "1", "to_state": "scanright", "write": "1", "action": "RIGHT"},
-			{ "read" : "-", "to_state": "scanright", "write": "-", "action": "RIGHT"},
-			{ "read" : "=", "to_state": "eraseone" , "write": ".", "action": "LEFT" }
+			{ "read" : "0", "to_state": "buff0", "write": ".", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "buff1", "write": ".", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "RIGHT"}
 		],
-		"eraseone": [
-			{ "read" : "1", "to_state": "subone", "write": "=", "action": "LEFT"},
-			{ "read" : "-", "to_state": "HALT" , "write": ".", "action": "LEFT"}
+		"scanleft": [
+			{ "read" : "0", "to_state": "scanleft", "write": "0", "action": "LEFT"},
+			{ "read" : "1", "to_state": "scanleft", "write": "1", "action": "LEFT"},
+			{ "read" : ".", "to_state": "scanright", "write": ".", "action": "RIGHT"}
 		],
-		"subone": [
-			{ "read" : "1", "to_state": "subone", "write": "1", "action": "LEFT"},
-			{ "read" : "-", "to_state": "skip" , "write": "-", "action": "LEFT"}
+		"buff0": [
+			{ "read" : "0", "to_state": "state0", "write": "0", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "state0", "write": "1", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "LEFT"}
 		],
-		"skip": [
-			{ "read" : ".", "to_state": "skip" , "write": ".", "action": "LEFT"},
-			{ "read" : "1", "to_state": "scanright", "write": ".", "action": "RIGHT"}
+		"state0": [
+			{ "read" : "0", "to_state": "state0", "write": "0", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "state0", "write": "1", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "comp0", "write": ".", "action": "LEFT"}
+		],
+		"comp0": [
+			{ "read" : "0", "to_state": "scanleft", "write": ".", "action": "LEFT"},
+			{ "read" : "1", "to_state": "HALT", "write": "n", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "HALT", "write": "n", "action": "RIGHT"}
+		],
+		"buff1": [
+			{ "read" : "0", "to_state": "state1", "write": "0", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "state1", "write": "1", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "LEFT"}
+		],
+		"state1": [
+			{ "read" : "0", "to_state": "state1", "write": "0", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "state1", "write": "1", "action": "RIGHT"},
+			{ "read" : ".", "to_state": "comp1", "write": ".", "action": "LEFT"}
+		],
+		"comp1": [
+			{ "read" : "0", "to_state": "HALT", "write": "n", "action": "RIGHT"},
+			{ "read" : "1", "to_state": "scanleft", "write": ".", "action": "LEFT"},
+			{ "read" : ".", "to_state": "HALT", "write": "n", "action": "RIGHT"}
 		]
 	}
 }
