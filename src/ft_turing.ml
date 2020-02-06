@@ -90,10 +90,10 @@ let print_rb (rb: tape) (ms: machine_string): unit =
      "<" ^ (List.nth ms.alphabet rb.cur) ^ ">" ^
       (list_to_string rb.right 10) ^ "] (" ^
        (List.nth ms.states rb.state) ^ ", " ^
-        (List.nth ms.alphabet rb.cur) ^ ") -> "
+        (List.nth ms.alphabet rb.cur) ^ ")"
 
 let print_tr (tr: transition) (ms: machine_string): unit =
-    print_string @@ "(" ^ (List.nth ms.states tr.to_state) ^ ", " ^
+    print_string @@ " -> (" ^ (List.nth ms.states tr.to_state) ^ ", " ^
      (List.nth ms.alphabet tr.write) ^ ", " ^
       (if tr.action then "RIGHT)\n" else "LEFT)\n") 
 
@@ -154,6 +154,7 @@ let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
             rbr := do_transition !rbr @@ Result.get_ok tr;
             ()
     done;
+    let () = print_rb !rbr ms in print_newline ();
     !er
 
 let order_machine_string (ms: machine_string): machine_string = {
