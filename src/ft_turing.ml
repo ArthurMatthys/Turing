@@ -87,7 +87,7 @@ let print_rb (rb: tape) (ms: machine_string): unit =
         | h::t -> (List.nth ms.alphabet h) ^ (list_to_string t (width-1))
     in
     print_string @@ "[" ^ (string_rev (list_to_string rb.left 10)) ^
-     "<" ^ (List.nth ms.alphabet rb.cur) ^ ">" ^
+                    "\027[31m" ^ (List.nth ms.alphabet rb.cur) ^ "\027[0m" ^
       (list_to_string rb.right 10) ^ "] (" ^
        (List.nth ms.states rb.state) ^ ", " ^
         (List.nth ms.alphabet rb.cur) ^ ")"
