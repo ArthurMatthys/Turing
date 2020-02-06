@@ -101,28 +101,18 @@ let print_error = print_endline
 let do_transition (rb: tape) (tr: transition): tape =
     if tr.action then {
         right=if List.length rb.right > 0 then List.tl rb.right else [];
-        left=rb.cur :: rb.left;
+        left=tr.write :: rb.left;
         cur=if List.length rb.right > 0 then List.hd rb.right else 0;
         state=tr.to_state;
     } else {
-        right=rb.cur :: rb.right;
+        right=tr.write :: rb.right;
         left=if List.length rb.left > 0 then List.tl rb.left else [];
         cur=if List.length rb.left > 0 then List.hd rb.left else 0;
         state=tr.to_state;
     }
 
-let rec print_lst (lst:string list) = match lst with
-| [] -> print_newline ()
-| h::t -> print_string @@ "|" ^ h ^ "|" ^ " -> "; print_lst t
-
-let rec print_lst_from_int (lst:int list) = match lst with
-| [] -> print_newline ()
-| h::t -> print_string @@ "|" ^ string_of_int h ^ "|" ^ " -> "; print_lst_from_int t
-
 let print_machine (prg:machine) (ms:machine_string): unit = 
-    let () = print_lst_from_int prg.finals in 
     let _ = List.iter (fun (trllst, i) -> 
-    let () = print_endline @@ List.nth ms.states i in
     if Option.is_none trllst
     then print_endline "None"
     else 
@@ -142,7 +132,6 @@ let print_tran (tr:transition): unit =
     print_string @@ (string_of_int tr.to_state) ^ (string_of_int tr.write) ^ (string_of_bool tr.action)
 
 let get_next_tr (prg: machine) (rb: tape): (transition, string) result = 
-    let () = print_string @@ string_of_int rb.state in
     let transitions: transition option list option = List.nth prg.transitions rb.state in
     if Option.is_none transitions then Result.error "The transition named in the previous instruction wasn't found in the transtion table"
     else let trs = Option.get transitions in
@@ -151,7 +140,6 @@ let get_next_tr (prg: machine) (rb: tape): (transition, string) result =
          else Result.ok @@ Option.get tr
 
 let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
-    let () = print_machine prg ms in
     let (rbr: tape ref) = ref rb in
     let (er: (unit, string) result ref) = ref @@ Result.Ok () in
     while Result.is_ok !er && not @@ List.exists ((=) !rbr.state) prg.finals do
@@ -178,8 +166,6 @@ let order_machine_string (ms: machine_string): machine_string = {
 }
 
 let machine_string_to_machine (ms_order:machine_string) (instr:string list): (tape * machine) = 
-    let () = print_lst ms_order.alphabet in
-    let () = print_lst ms_order.states in
     let transition_of_state (s: string): transition option list option =
         let (tr:  transition_string_with_state option) =
             List.find_opt (fun (trsws: transition_string_with_state) -> String.equal trsws.state s) ms_order.transitions
@@ -212,7 +198,6 @@ let machine_string_to_machine (ms_order:machine_string) (instr:string list): (ta
         cur= if List.length lst_instr_index > 1 then List.hd lst_instr_index else 0;
         state= 0;
     } in
-    let () = print_lst_from_int tp.right in
     (tp, ma)
 
 let print_machine (ms: machine_string): unit =
