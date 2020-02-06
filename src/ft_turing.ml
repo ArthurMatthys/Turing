@@ -197,7 +197,7 @@ let machine_string_to_machine (ms_order:machine_string) (instr:string list): (ta
     let (tp: tape) = {
         right= if List.length lst_instr_index > 1 then List.tl lst_instr_index else [];
         left= [];
-        cur= if List.length lst_instr_index > 1 then List.hd lst_instr_index else 0;
+        cur= if List.length lst_instr_index > 0 then List.hd lst_instr_index else 0;
         state= 0;
     } in
     (tp, ma)
