@@ -19,7 +19,7 @@
 		"buff0": [
 			{ "read" : "0", "to_state": "state0", "write": "0", "action": "RIGHT"},
 			{ "read" : "1", "to_state": "state0", "write": "1", "action": "RIGHT"},
-			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "LEFT"}
+			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "RIGHT"}
 		],
 		"state0": [
 			{ "read" : "0", "to_state": "state0", "write": "0", "action": "RIGHT"},
@@ -34,7 +34,7 @@
 		"buff1": [
 			{ "read" : "0", "to_state": "state1", "write": "0", "action": "RIGHT"},
 			{ "read" : "1", "to_state": "state1", "write": "1", "action": "RIGHT"},
-			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "LEFT"}
+			{ "read" : ".", "to_state": "HALT", "write": "y", "action": "RIGHT"}
 		],
 		"state1": [
 			{ "read" : "0", "to_state": "state1", "write": "0", "action": "RIGHT"},
