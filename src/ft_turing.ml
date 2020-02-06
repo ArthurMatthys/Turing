@@ -351,7 +351,9 @@ let check_machine (ms: machine_string): (machine_string, string) result = (
 
 let check_intructions (ms: machine_string) (arg_instruction:string list): (unit, string) result =
     if List.for_all (fun c -> List.exists (String.equal c) ms.alphabet) arg_instruction
-    then Result.Ok ()
+    then if List.exists (String.equal ms.blank) arg_instruction
+        then Result.Error "Blanc character can't be in input"
+        else Result.Ok ()
     else Result.Error "Wrong character in instruction"
 
 let usage (): unit = print_string
