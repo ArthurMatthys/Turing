@@ -2,7 +2,8 @@
 
 NAME = ft_turing
 
-PKG = yojson,core
+PKG = yojson
+
 CC = ocamlfind ocamlopt
 CC_INT = ocamlc
 
@@ -45,6 +46,11 @@ INT = $(addprefix $(INT_DIR), $(INT_))
 
 
 all: $(NAME)
+
+install:
+	@brew install opam
+	@eval $(opam config env)
+	@opam install $(PKG)
 
 $(NAME): $(OBJ_DIR) $(OBJ) $(CMI_DIR) $(CMI)
 	@printf "== \x1b[35m$(NAME)\x1b[0m ========================================================\n"
