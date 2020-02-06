@@ -75,6 +75,7 @@ let string_rev str =
      0 -> Char.escaped (str.[0])
    | _ -> (Char.escaped str.[idx]) ^ (aux (idx-1)) in
   aux ((String.length str)-1)
+
 (* --- *)
 
 let print_rb (rb: tape) (ms: machine_string): unit = 
@@ -156,14 +157,14 @@ let run (prg: machine) (rb: tape) (ms: machine_string): (unit, string) result =
     !er
 
 let order_machine_string (ms: machine_string): machine_string = {
-    name=ms.name;
-    alphabet= ms.blank :: (List.filter (fun e -> not @@ String.equal e ms.blank) ms.alphabet);
-    blank= ms.blank;
-    states= ms.initial :: (List.filter (fun e -> not @@ String.equal e ms.initial) ms.states);
-    initial= ms.initial;
-    finals= ms.finals;
-    transitions= ms.transitions;
-}
+        name=ms.name;
+        alphabet= ms.blank :: (List.filter (fun e -> not @@ String.equal e ms.blank) ms.alphabet);
+        blank= ms.blank;
+        states= ms.initial :: (List.filter (fun e -> not @@ String.equal e ms.initial) ms.states);
+        initial= ms.initial;
+        finals= ms.finals;
+        transitions= ms.transitions;
+    }
 
 let machine_string_to_machine (ms_order:machine_string) (instr:string list): (tape * machine) = 
     let transition_of_state (s: string): transition option list option =
@@ -353,27 +354,36 @@ let check_intructions (ms: machine_string) (arg_instruction:string list): (unit,
     then Result.Ok ()
     else Result.Error "Wrong character in instruction"
 
+let usage (): unit = print_string "usage: ft_turing [-h] jsonfile input\n
+positional arguments:
+\tjsonfile\tjson description of the machine\n
+\tinput\t\tinput of the machine\n
+optional arguments:
+\t-h, --help show this help message and exit\n"
+
 let _ =
-    if Array.length Sys.argv <> 3 then
-        let () = print_string "./ft_turing <config.jsoin> <input string>\n" in
-        let _ = Exit in ()
+    if Array.length Sys.argv <> 3
+    then usage ()
     else
-        let (json: (Yojson.Basic.t, string) result) = read_json_file Sys.argv.(1) in
-        let lst_instr = explode Sys.argv.(2) in
-        let (machine_string_res: (machine_string, string) result) = 
-            Result.bind (Result.bind json json_to_machine_string) check_machine
-        in
-        if Result.is_error machine_string_res
-        then print_error @@ Result.get_error machine_string_res
-        else 
-            let ms = Result.get_ok machine_string_res in
-            let error_lst_instr = check_intructions ms lst_instr in
-            if Result.is_error error_lst_instr
-            then print_error @@ Result.get_error error_lst_instr
-            else
-                let () = print_machine ms in
-                let ms_order = order_machine_string ms in
-                let (rb, mach) = machine_string_to_machine ms_order lst_instr in
-                let er = run mach rb ms_order in
-                let _ = Result.map_error print_error er in
-                    ()
+        if (String.equal Sys.argv.(1) "--help") || (String.equal Sys.argv.(1) "-h")
+        then usage ()
+        else
+            let (json: (Yojson.Basic.t, string) result) = read_json_file Sys.argv.(1) in
+            let lst_instr = explode Sys.argv.(2) in
+            let (machine_string_res: (machine_string, string) result) = 
+                Result.bind (Result.bind json json_to_machine_string) check_machine
+            in
+            if Result.is_error machine_string_res
+            then print_error @@ Result.get_error machine_string_res
+            else 
+                let ms = Result.get_ok machine_string_res in
+                let error_lst_instr = check_intructions ms lst_instr in
+                if Result.is_error error_lst_instr
+                then print_error @@ Result.get_error error_lst_instr
+                else
+                    let () = print_machine ms in
+                    let ms_order = order_machine_string ms in
+                    let (rb, mach) = machine_string_to_machine ms_order lst_instr in
+                    let er = run mach rb ms_order in
+                    let _ = Result.map_error print_error er in
+                        ()
